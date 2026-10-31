@@ -321,8 +321,9 @@ final class StatusItemController: NSObject {
     @MainActor
     func updatePopoverSize() {
         let vm = AppListViewModel.shared
-        let portsEnabled = ConfigStore.shared.config.portsEnabled
-        let tabBarHeight: CGFloat = portsEnabled && !vm.isPortsOnly ? 29 : 0
+        let config = ConfigStore.shared.config
+        let showsTabBar = config.portsEnabled && !config.portsShowMenuBarCount && !vm.isPortsOnly
+        let tabBarHeight: CGFloat = showsTabBar ? 29 : 0
         let count: Int
         let groupHeaders: Int
         if isPortsTabActive {
