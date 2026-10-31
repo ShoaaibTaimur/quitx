@@ -2,6 +2,14 @@
 
 All notable changes to QuitX macOS App will be documented in this file.
 
+## 1.2.5
+
+### Changed
+
+- **Cleaner Popover Navigation**: The popover tab bar is automatically hidden when the Ports menu bar count is enabled, keeping navigation clean while Ports has its own dedicated menu bar item.
+- **Robust Trash Scanning**: When direct directory access to `~/.Trash` is restricted, QuitX falls back to querying Finder so Trash item counts and sizes remain accurate.
+- **Thorough Helper Process Termination**: Quitting an app now cleans up orphaned helper daemons reparented to `launchd`. Force Quit mode also gathers and terminates spawned external worker processes without affecting sibling app instances.
+
 ## 1.2.4
 
 ### Changed

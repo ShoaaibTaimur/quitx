@@ -2,6 +2,14 @@ import Foundation
 
 extension ChangelogProvider {
     static let appReleases: [ReleaseChangelog] = [
+        ReleaseChangelog("1.2.5", "Helper process termination, robust Trash scan & popover polish", [
+            ("Improvements", [
+                "**Cleaner Popover Navigation**: The popover tab bar is automatically hidden when the Ports menu bar count is enabled, keeping navigation focused.",
+                "**Robust Trash Scanning**: Falls back to querying Finder when direct directory access to Trash is restricted to ensure accurate item discovery.",
+                "**Thorough Helper Process Termination**: Quitting apps now tracks orphaned helpers reparented to launchd, and Force Quit gathers and terminates spawned external worker processes."
+            ])
+        ]),
+
         ReleaseChangelog("1.2.4", "Dedicated Ports popover, single-box changelog & playful tooltips", [
             ("Improvements", [
                 "**Popover Opens Where You Clicked**: The QuitX icon always opens Apps, and the Ports menu bar stat opens just your ports right below it. Click it again to close.",
