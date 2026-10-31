@@ -178,4 +178,28 @@ struct PortListViewModelTests {
             #expect(vm.hasLoadedOnce)
         }
     }
+
+    @Test("Group key sanitization and ordering")
+    func groupingSanitization() async {
+        let portWithCwd = PortInfo(port: 3000, pid: 101, processName: "node", cwd: "/Users/dev/cloudflare")
+        let portEmptyCwd = PortInfo(port: 3001, pid: 102, processName: "agy", cwd: "")
+        let portRootCwd = PortInfo(port: 3002, pid: 103, processName: "agy", cwd: "/")
+        let portWhitespaceCwd = PortInfo(port: 3003, pid: 104, processName: "agy", cwd: "   \n ")
+        let portNilCwd = PortInfo(port: 3004, pid: 105, processName: "agy", cwd: nil)
+        let portDevdock = PortInfo(port: 3005, pid: 106, processName: "agy", cwd: "/Users/dev/devdock")
+
+        #expect(PortListViewModel.groupKey(for: portWithCwd, mode: .project) == "cloudflare")
+        #expect(PortListViewModel.groupKey(for: portEmptyCwd, mode: .project) == "Other")
+        #expect(PortListViewModel.groupKey(for: portRootCwd, mode: .project) == "Other")
+        #expect(PortListViewModel.groupKey(for: portWhitespaceCwd, mode: .project) == "Other")
+        #expect(PortListViewModel.groupKey(for: portNilCwd, mode: .project) == "Other")
+        #expect(PortListViewModel.groupKey(for: portDevdock, mode: .project) == "devdock")
+
+        await withConfig({ $0.portsGrouping = .project }) { store in
+            let vm = PortListViewModel(portService: StubPortService(), configStore: store, optionKeyPressed: { false })
+            vm.ports = [portEmptyCwd, portWithCwd, portDevdock]
+            let groupNames = vm.groupedPorts.map(\.0)
+            #expect(groupNames == ["cloudflare", "devdock", "Other"])
+        }
+    }
 }

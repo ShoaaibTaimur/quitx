@@ -126,10 +126,21 @@ final class PortListViewModel: ObservableObject {
 
     static func groupKey(for port: PortInfo, mode: ListenerGrouping) -> String {
         switch mode {
-        case .none: return ""
-        case .project: return port.cwd.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Other"
-        case .docker: return port.docker?.name ?? "Local processes"
-        case .process: return port.processGroup ?? port.displayAppName
+        case .none:
+            return ""
+        case .project:
+            guard let raw = port.cwd?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty, raw != "/" else { return "Other" }
+            let name = URL(fileURLWithPath: raw).lastPathComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (name.isEmpty || name == "/" || name == ".") ? "Other" : name
+        case .docker:
+            let name = port.docker?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return name.isEmpty ? "Local processes" : name
+        case .process:
+            let group = port.processGroup?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let app = port.displayAppName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let candidate = (group?.isEmpty == false ? group : nil) ?? app
+            return candidate.isEmpty ? "Unknown process" : candidate
         }
     }
 
@@ -138,7 +149,14 @@ final class PortListViewModel: ObservableObject {
         let visible = filteredPorts
         guard mode != .none else { return [("", visible)] }
         let groups = Dictionary(grouping: visible) { Self.groupKey(for: $0, mode: mode) }
-        return groups.keys.sorted().map { ($0, groups[$0] ?? []) }
+        return groups.keys.sorted { a, b in
+            let aIsFallback = (a == "Other" || a == "Local processes")
+            let bIsFallback = (b == "Other" || b == "Local processes")
+            if aIsFallback != bIsFallback {
+                return !aIsFallback
+            }
+            return a.localizedCaseInsensitiveCompare(b) == .orderedAscending
+        }.map { ($0, groups[$0] ?? []) }
     }
 
     var visibleGroupCount: Int {
