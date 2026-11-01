@@ -412,7 +412,7 @@ enum AppUninstaller {
                     try FileManager.default.trashItem(at: url, resultingItemURL: nil)
                     partial.trashed.append(url)
                 } catch {
-                    if FileManager.default.fileExists(atPath: url.path) {
+                    if itemExists(atPath: url.path) {
                         partial.failed.append(RemovalFailure(url: url, message: error.localizedDescription))
                     } else {
                         partial.trashed.append(url)
@@ -425,7 +425,7 @@ enum AppUninstaller {
 
         let retry = result.failed.map(\.url)
         _ = await recycle(retry)
-        let stillThere = retry.filter { FileManager.default.fileExists(atPath: $0.path) }
+        let stillThere = retry.filter { itemExists(atPath: $0.path) }
         result.trashed.append(contentsOf: retry.filter { !stillThere.contains($0) })
         result.failed = []
         guard !stillThere.isEmpty else { return result }
@@ -496,6 +496,12 @@ enum AppUninstaller {
         return !parts[4...].contains("..")
     }
 
+    static func itemExists(atPath path: String) -> Bool {
+        var info = stat()
+        if lstat(path, &info) == 0 { return true }
+        return errno != ENOENT && errno != ENOTDIR
+    }
+
     static func removePermanently(_ urls: [URL], allowAdministrator: Bool = true) async -> RemovalResult {
         let safeURLs = urls.filter { isSafePermanentRemoval($0) }
         var result = RemovalResult()
@@ -509,7 +515,7 @@ enum AppUninstaller {
                     try FileManager.default.removeItem(at: url)
                     partial.trashed.append(url)
                 } catch {
-                    if FileManager.default.fileExists(atPath: url.path) {
+                    if itemExists(atPath: url.path) {
                         partial.failed.append(RemovalFailure(url: url, message: error.localizedDescription))
                     } else {
                         partial.trashed.append(url)
@@ -520,13 +526,31 @@ enum AppUninstaller {
         }.value
         result.trashed.append(contentsOf: local.trashed)
         guard !local.failed.isEmpty else { return result }
+
+        let trashRoots = CleanupService.currentUserTrashRoots()
+        let blockedTrash = local.failed.filter { CleanupService.isTopLevelTrashItem($0.url, roots: trashRoots) }.map(\.url)
+        var pending = local.failed
+        if !blockedTrash.isEmpty {
+            let finder = await Task.detached(priority: .userInitiated) {
+                CleanupService.emptyTrashWithFinder(removing: blockedTrash)
+            }.value
+            result.trashed.append(contentsOf: finder.removed)
+            let removed = Set(finder.removed)
+            pending.removeAll { removed.contains($0.url) }
+            let remaining = Set(finder.remaining)
+            result.failed.append(contentsOf: pending.filter { remaining.contains($0.url) }.map {
+                RemovalFailure(url: $0.url, message: "Full Disk Access required to remove single Trash items")
+            })
+            pending.removeAll { remaining.contains($0.url) }
+        }
+        guard !pending.isEmpty else { return result }
         guard allowAdministrator else {
-            result.failed.append(contentsOf: local.failed)
+            result.failed.append(contentsOf: pending)
             return result
         }
 
         let admin = await Task.detached(priority: .userInitiated) {
-            removePermanentlyWithAdministrator(local.failed.map(\.url))
+            removePermanentlyWithAdministrator(pending.map(\.url))
         }.value
         result.trashed.append(contentsOf: admin.trashed)
         result.failed.append(contentsOf: admin.failed)
@@ -593,7 +617,7 @@ enum AppUninstaller {
         var errorInfo: NSDictionary?
         NSAppleScript(source: source)?.executeAndReturnError(&errorInfo)
         for url in urls {
-            if FileManager.default.fileExists(atPath: url.path) {
+            if itemExists(atPath: url.path) {
                 let message = (errorInfo?[NSAppleScript.errorMessage] as? String) ?? "Permission denied"
                 result.failed.append(RemovalFailure(url: url, message: message))
             } else {
@@ -647,7 +671,7 @@ enum AppUninstaller {
         lazy var hasFullDiskAccess = FullDiskAccessManager.checkFullDiskAccess()
         for url in urls {
             let path = url.path
-            if !FileManager.default.fileExists(atPath: path) {
+            if !itemExists(atPath: path) {
                 result.trashed.append(url)
             } else if let preInode = preDeleteInodes[path],
                       let nowInode = ((try? FileManager.default.attributesOfItem(atPath: path))?[.systemFileNumber] as? NSNumber)?.uint64Value,

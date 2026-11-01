@@ -198,7 +198,7 @@ enum CleanupService {
     return urls as text
     """
 
-    private static func finderTrashPaths() -> [String]? {
+    static func finderTrashPaths() -> [String]? {
         guard let output = ProcessRunner.runSync(
             executable: "/usr/bin/osascript",
             arguments: ["-e", finderTrashScript],
@@ -209,6 +209,45 @@ enum CleanupService {
             .compactMap { URL(string: String($0))?.path }
             .filter { !$0.isEmpty }
     }
+
+    static func currentUserTrashRoots() -> [URL] {
+        trashRoots(home: FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL, volumeTrashes: volumeTrashRoots())
+    }
+
+    static func isTopLevelTrashItem(_ url: URL, roots: [URL]) -> Bool {
+        let rootPaths = Set(roots.map { $0.standardizedFileURL.path })
+        return rootPaths.contains(url.standardizedFileURL.deletingLastPathComponent().path)
+    }
+
+    static func emptyTrashWithFinder(removing urls: [URL]) -> (removed: [URL], remaining: [URL]) {
+        let roots = currentUserTrashRoots()
+        let requested = Set(urls.map { $0.standardizedFileURL.path })
+        guard let before = finderTrashPaths().map({ trashURLs(fromFinderPaths: $0, roots: roots) }),
+              !before.isEmpty,
+              before.allSatisfy({ requested.contains($0.path) }) else { return ([], urls) }
+        guard let output = ProcessRunner.runSync(
+            executable: "/usr/bin/osascript",
+            arguments: ["-e", finderEmptyTrashScript],
+            timeout: 120
+        ), output.status == 0, !output.timedOut,
+              let after = finderTrashPaths().map({ trashURLs(fromFinderPaths: $0, roots: roots) }) else { return ([], urls) }
+        let left = Set(after.map(\.path))
+        return (
+            urls.filter { !left.contains($0.standardizedFileURL.path) },
+            urls.filter { left.contains($0.standardizedFileURL.path) }
+        )
+    }
+
+    private static let finderEmptyTrashScript = """
+    tell application "Finder"
+        set previousWarn to warns before emptying
+        try
+            set warns before emptying to false
+            empty the trash
+        end try
+        set warns before emptying to previousWarn
+    end tell
+    """
 
     static func volumeTrashRoots(fileManager: FileManager = .default) -> [URL] {
         let volumes = fileManager.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: [.skipHiddenVolumes]) ?? []

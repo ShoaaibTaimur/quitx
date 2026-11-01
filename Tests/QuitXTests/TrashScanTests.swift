@@ -77,3 +77,22 @@ struct TrashScanTests {
         #expect(!AppUninstaller.isSafePermanentRemoval(URL(fileURLWithPath: "/Volumes/Disk/.Trashes/\(uid)")))
     }
 }
+
+@Suite("Removal existence check")
+struct RemovalExistenceTests {
+    @Test("Only a missing path counts as removed, not a permission error")
+    func itemExistsTreatsOnlyMissingAsGone() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("quitx-exists-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dir.path)
+            try? FileManager.default.removeItem(at: dir)
+        }
+        let file = dir.appendingPathComponent("item")
+        try Data().write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: dir.path)
+        #expect(!FileManager.default.fileExists(atPath: file.path))
+        #expect(AppUninstaller.itemExists(atPath: file.path))
+        #expect(!AppUninstaller.itemExists(atPath: FileManager.default.temporaryDirectory.appendingPathComponent("quitx-missing-\(UUID().uuidString)").path))
+    }
+}
