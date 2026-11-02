@@ -255,7 +255,7 @@ final class PermissionCenter: ObservableObject {
             AccessibilityPermission.shared.requestAccess()
             refreshSoon()
         case .fullDiskAccess:
-            FullDiskAccessManager.shared.openSettingsAndReveal()
+            FullDiskAccessManager.shared.openFullDiskAccessSettings()
             refreshSoon()
         case .finderAutomation:
             runBusy(kind) {
@@ -285,7 +285,7 @@ final class PermissionCenter: ObservableObject {
     func openSettings(_ kind: PermissionKind) {
         switch kind {
         case .fullDiskAccess:
-            FullDiskAccessManager.shared.openSettingsAndReveal()
+            FullDiskAccessManager.shared.openFullDiskAccessSettings()
         case .loginItem:
             LaunchAtLoginService.shared.openLoginItemsSettings()
         default:

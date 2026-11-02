@@ -22,6 +22,20 @@ struct PermissionCenterTests {
         #expect(PermissionKind.notifications.tccService == nil)
     }
 
+    @Test("Full Disk Access probes only paths macOS protects without it")
+    func fullDiskAccessProbes() throws {
+        let probes = FullDiskAccessManager.accessProbePaths(home: "/Users/me")
+        #expect(probes.first == "/Users/me/.Trash")
+        #expect(probes.allSatisfy { $0.hasPrefix("/Users/me/") })
+        #expect(!probes.contains("/Library/Application Support/com.apple.TCC/TCC.db"))
+
+        let readable = FileManager.default.temporaryDirectory.appendingPathComponent("quitx-fda-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: readable, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: readable) }
+        #expect(FullDiskAccessManager.canActuallyRead(path: readable.path))
+        #expect(!FullDiskAccessManager.canActuallyRead(path: readable.appendingPathComponent("missing").path))
+    }
+
     @Test("System answers map to the right status")
     func statusMapping() {
         #expect(PermissionStatusMapping.accessibility(trusted: true, needsRepair: true) == .granted)
